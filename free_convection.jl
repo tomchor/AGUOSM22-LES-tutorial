@@ -45,10 +45,14 @@ function run_free_convection(; N=32, H=64, Qᵇ=1e-8, N²=1e-6, advection=Upwind
                                                           field_slicer = nothing,
                                                           force = true)
         
+    u, v, w, b = fields(model)
     κₑ = model.diffusivity_fields.κₑ.b
     wb = AveragedField(w * b, dims=(1, 2))
-    qᵇ = AveragedField(κₑ * b, dims=(1, 2))
-    simulation.
+    qᵇ = AveragedField(- ∂z(b) * κₑ, dims=(1, 2))
+    simulation.output_writers[:averages] = JLD2OutputWriter(model, (; wb, qᵇ),
+                                                            prefix = "free_convection_averages_$N",
+                                                            schedule = TimeInterval(stop_time/10),
+                                                            force = true)
 
     run!(simulation)
 
@@ -58,16 +62,20 @@ end
 path = run_free_convection()
 
 # Visualize
-w = FieldTimeSeries(path, "w")
+w = FieldTimeSeries("free_convection_32.jld2", "w")
+x, y, z = nodes(w)
+Nt = size(w, 4)
 n = Node(1)
 wⁿ = @lift Array(interior(w[$n]))[1, :, :]
+wmax = maximum(abs, w[Nt])
 title = @lift "Vertical velocity at t = " * prettytime(w.times[$n])
 
 fig = Figure(resolution=(800, 600))
 ax = Axis(fig[1, 1]; title)
-heatmap!(ax, wⁿ)
+hm = heatmap!(ax, y, z, wⁿ, limits=(-wmax, wmax), colormap=:balance) 
+cb = Colorbar(fig[1, 2], limits=(-wmax, wmax), colormap=:balance)
 
-record(fig, basename(path)[1:end-5] * ".mp4", 1:length(w.times), framerate=8) do nn
-    @info "Animating frame $nn of $(length(w.times))..."
+record(fig, basename(path)[1:end-5] * ".mp4", 1:Nt, framerate=8) do nn
+    @info "Animating frame $nn of $Nt..."
     n[] = nn
 end
