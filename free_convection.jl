@@ -65,7 +65,7 @@ function run_free_convection(; N=32, H=64, Qᵇ=1e-8, N²=1e-6, advection=Upwind
 end
 
 # Run the free convection experiment
-# prefix = run_free_convection()
+prefix = run_free_convection()
 
 # Generate file paths from the file prefix
 fields_path = prefix * "_fields.jld2"
