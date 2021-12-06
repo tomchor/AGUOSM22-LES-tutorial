@@ -75,7 +75,7 @@ averages_path = prefix * "_averages.jld2"
 w = FieldTimeSeries(fields_path, "w")
 x, y, z = nodes(w)
 Nt = size(w, 4)
-Nz = size(w, 3) - 1
+Nz = w.grid.Nz
 wmax = maximum(abs, w[Nt])
 n = Node(1) # `n` represents the "snapshot index" (n varies from 1 to 11 here)
 
