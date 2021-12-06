@@ -1,7 +1,8 @@
 using Oceananigans
 
-grid = RectilinearGrid(size=(64, 64), x=(-5, 5), z=(-5, 5),
-                       topology=(Periodic, Flat, Bounded))
+L = 10
+grid = RectilinearGrid(size=(32, 32, 64), x=(-L/2, L/2), y=(-L/2, L/2), z=(-L/2, L/2),
+                       topology=(Periodic, Periodic, Bounded))
 
 shear_flow(x, y, z, t) = tanh(z)
 
@@ -33,7 +34,7 @@ model = NonhydrostaticModel(timestepper = :RungeKutta3,
 
 amplitude = 1e-2
 noise(x, y, z) = amplitude * randn()
-set!(model, u=noise, w=noise)
+set!(model, u=noise, v=noise, w=noise)
 
 simulation = Simulation(model, Δt=0.1, stop_time=200)
 
@@ -47,19 +48,18 @@ total_b = ComputedField(b + model.background_fields.tracers.b)
 simulation.output_writers[:vorticity] =
     JLD2OutputWriter(model, (Ω=total_vorticity, b=b, B=total_b),
                      schedule = TimeInterval(1),
+                     field_slicer = FieldSlicer(j=1),
                      prefix = "kelvin_helmholtz_instability",
                      force = true)
-
-# And now we...
 
 @info "*** Running a simulation of Kelvin-Helmholtz instability..."
 run!(simulation)
 
-# ## Pretty things
-#
-# Load it; plot it. First the nonlinear equilibration of the perturbation fields together with the evolution of the
-# kinetic energy.
 
+
+# Now we plot stuff
+
+using Printf
 using JLD2
 
 file = jldopen(simulation.output_writers[:vorticity].filepath)
@@ -71,18 +71,15 @@ iterations = parse.(Int, keys(file["timeseries/t"]))
 time = []
 
 xF, yF, zF = nodes(total_vorticity)
-
 xC, yC, zC = nodes(b)
 
-
-using Printf
 function eigenplot(ω, b, σ, t; ω_lim=maximum(abs, ω)+1e-16, b_lim=maximum(abs, b)+1e-16)
 
     kwargs = (xlabel="x", ylabel="z", linewidth=0, label=nothing, color = :balance, aspectratio = 1,)
 
     ω_title(t) = t == nothing ? @sprintf("vorticity") : @sprintf("vorticity at t = %.2f", t)
 
-    plot_ω = contourf(xF, zF, clamp.(ω, -ω_lim, ω_lim)';
+    plot_ω = heatmap(xF, zF, clamp.(ω, -ω_lim, ω_lim)';
                       levels = range(-ω_lim, stop=ω_lim, length=20),
                        xlims = (xF[1], xF[grid.Nx]),
                        ylims = (zF[1], zF[grid.Nz]),
