@@ -41,9 +41,9 @@ simulation = Simulation(model, Δt=0.1, stop_time=200)
 u, v, w = model.velocities
 b = model.tracers.b
 
-total_vorticity = ComputedField(∂z(u) + ∂z(model.background_fields.velocities.u) - ∂x(w))
+total_vorticity = Field(∂z(u) + ∂z(model.background_fields.velocities.u) - ∂x(w))
 
-total_b = ComputedField(b + model.background_fields.tracers.b)
+total_b = Field(b + model.background_fields.tracers.b)
 
 simulation.output_writers[:vorticity] =
     JLD2OutputWriter(model, (Ω=total_vorticity, b=b, B=total_b),
