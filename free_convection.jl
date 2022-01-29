@@ -51,8 +51,8 @@ function run_free_convection(; N=32, H=64, Qᵇ=1e-8, N²=1e-6, advection=Upwind
         
     u, v, w, b = fields(model)
     κₑ = model.diffusivity_fields.κₑ.b
-    wb = AveragedField(w * b, dims=(1, 2))
-    qᵇ = AveragedField(- ∂z(b) * κₑ, dims=(1, 2))
+    wb = Field(Average(w * b, dims=(1, 2)))
+    qᵇ = Field(Average(- ∂z(b) * κₑ, dims=(1, 2)))
     simulation.output_writers[:averages] = JLD2OutputWriter(model, (; wb, qᵇ),
                                                             prefix = prefix * "_averages",
                                                             schedule = TimeInterval(stop_time/10),
@@ -77,7 +77,7 @@ x, y, z = nodes(w)
 Nt = size(w, 4)
 Nz = w.grid.Nz
 wmax = maximum(abs, w[Nt])
-n = Node(1) # `n` represents the "snapshot index" (n varies from 1 to 11 here)
+n = Observable(1) # `n` represents the "snapshot index" (n varies from 1 to 11 here)
 
 # Build the figure
 fig = Figure(resolution=(1600, 800))
