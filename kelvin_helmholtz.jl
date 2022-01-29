@@ -1,4 +1,6 @@
 using Oceananigans
+using Oceananigans.Units
+using Printf
 
 L = 10
 grid = RectilinearGrid(size=(32, 32, 64), x=(-L/2, L/2), y=(-L/2, L/2), z=(-L/2, L/2),
@@ -36,7 +38,19 @@ amplitude = 1e-2
 noise(x, y, z) = amplitude * randn()
 set!(model, u=noise, v=noise, w=noise)
 
-simulation = Simulation(model, Δt=0.1, stop_time=200)
+stop_time = 200
+simulation = Simulation(model, Δt=0.1, stop_time=stop_time)
+
+# Simple logging
+progress(sim) = @info @sprintf("[%.2f %%] iter %d, t = %s, Δt = %s, max(|w|): %.2e",
+                               100time(sim) / stop_time,
+                               iteration(sim),
+                               prettytime(sim),
+                               prettytime(sim.Δt),
+                               maximum(abs, sim.model.velocities.w))
+
+simulation.callbacks[:progress] = Callback(progress, IterationInterval(20))
+
 
 u, v, w = model.velocities
 b = model.tracers.b
@@ -67,8 +81,6 @@ file = jldopen(simulation.output_writers[:vorticity].filepath)
 iterations = parse.(Int, keys(file["timeseries/t"]))
 
 @info "Making a neat movie of stratified shear flow..."
-
-time = []
 
 xF, yF, zF = nodes(total_vorticity)
 xC, yC, zC = nodes(b)
@@ -105,8 +117,6 @@ anim_total = @animate for (i, iteration) in enumerate(iterations)
     t = file["timeseries/t/$iteration"]
     ω_snapshot = file["timeseries/Ω/$iteration"][:, 1, :]
     b_snapshot = file["timeseries/B/$iteration"][:, 1, :]
-
-    push!(time, t)
 
     eigenmode_plot = eigenplot(ω_snapshot, b_snapshot, nothing, t; ω_lim=1, b_lim=0.05)
 
