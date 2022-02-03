@@ -56,17 +56,16 @@ function run_kelvin_helmholtz(closure; grid=grid,
     total_vorticity = Field(∂z(u) - ∂x(w))
 
     closure_name = string(typeof(closure).name.wrapper) # Get closure's name
-    prefix = "kelvin_helmholtz_instability_$closure_name"
     simulation.output_writers[:snapshots] = JLD2OutputWriter(model, (ω=total_vorticity, b=b, νₑ=model.diffusivity_fields.νₑ),
                                                              schedule = TimeInterval(1),
                                                              field_slicer = FieldSlicer(j=1),
-                                                             prefix = prefix,
+                                                             prefix = "kelvin_helmholtz_instability_$closure_name",
                                                              force = true)
 
     @info "*** Running a simulation of Kelvin-Helmholtz instability with $closure_name closure"
     run!(simulation)
 
-    return prefix, simulation
+    return simulation
 
 end 
 
@@ -129,6 +128,6 @@ end
 closures = [AnisotropicMinimumDissipation(), SmagorinskyLilly()]
 for closure in closures
     @info "\nStarting simulation with closure" closure
-    global prefix, simulation = run_kelvin_helmholtz(closure, grid=grid, stop_time=150)
+    global simulation = run_kelvin_helmholtz(closure, grid=grid, stop_time=150)
     plot_video(simulation, fps=14, size=(800, 300))
 end
