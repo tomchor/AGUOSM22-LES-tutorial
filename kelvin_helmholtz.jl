@@ -3,64 +3,55 @@ using Oceananigans.Units
 using Printf
 
 L = 10
-grid = RectilinearGrid(size=(32, 32, 64), x=(-L/2, L/2), y=(-L/2, L/2), z=(-L/2, L/2),
+grid = RectilinearGrid(size=(64, 64, 128), x=(-L/2, L/2), y=(-L/2, L/2), z=(-L/2, L/2),
                        topology=(Periodic, Periodic, Bounded))
 
-shear_flow(x, y, z, t) = tanh(z)
-
-stratification(x, y, z, t, p) = p.h * p.Ri * tanh(z / p.h)
-
-U = BackgroundField(shear_flow)
-
-B = BackgroundField(stratification, parameters=(Ri=0.1, h=1/4))
 
 # Our basic state thus has a thin layer of stratification in the center of
 # the channel, embedded within a thicker shear layer surrounded by unstratified fluid.
 
-using Plots
+Ri, h = 0.1, 1/4
 
-zF = znodes(Face, grid)
-zC = znodes(Center, grid)
-
-Ri, h = B.parameters
-
-
+IsotropicDiffusivity(ν=2e-4, κ=2e-4)
+closure = SmagorinskyLilly(C=16)
 model = NonhydrostaticModel(timestepper = :RungeKutta3,
                               advection = UpwindBiasedFifthOrder(),
                                    grid = grid,
                                coriolis = nothing,
-                      background_fields = (u=U, b=B),
-                                closure = IsotropicDiffusivity(ν=2e-4, κ=2e-4),
+                                closure = closure,
                                buoyancy = BuoyancyTracer(),
                                 tracers = :b)
 
-amplitude = 1e-2
+amplitude = 1e-4
 noise(x, y, z) = amplitude * randn()
-set!(model, u=noise, v=noise, w=noise)
+
+shear_flow(x, y, z) = tanh(z) + noise(x, y, z)
+stratification(x, y, z) = h * Ri * tanh(z / h) + noise(x, y, z)
+set!(model, u=shear_flow, v=noise, w=noise, b=stratification)
 
 stop_time = 200
-simulation = Simulation(model, Δt=0.1, stop_time=stop_time)
+Δt_diffusive = grid.Δzᵃᵃᶜ^2 / maximum(model.diffusivity_fields.νₑ)
+Δt_advective = grid.Δzᵃᵃᶜ / maximum(model.velocities.u)
+simulation = Simulation(model, Δt=0.5 * min(Δt_advective, Δt_diffusive),
+                        stop_time=stop_time)
+
 
 # Simple logging
-progress(sim) = @info @sprintf("[%.2f %%] iter %d, t = %s, Δt = %s, max(|w|): %.2e",
-                               100time(sim) / stop_time,
-                               iteration(sim),
-                               prettytime(sim),
-                               prettytime(sim.Δt),
-                               maximum(abs, sim.model.velocities.w))
+using Oceanostics: SingleLineProgressMessenger
+progress = SingleLineProgressMessenger(LES=true)
+simulation.callbacks[:progress] = Callback(progress, IterationInterval(1))
 
-simulation.callbacks[:progress] = Callback(progress, IterationInterval(20))
-
+# Adaptive time-stepping
+wizard = TimeStepWizard(cfl=0.8, diffusive_cfl=0.5, max_change=1.02, min_change=0.1)
+simulation.callbacks[:wizard] = Callback(wizard, IterationInterval(1))
 
 u, v, w = model.velocities
 b = model.tracers.b
 
-total_vorticity = Field(∂z(u) + ∂z(model.background_fields.velocities.u) - ∂x(w))
+total_vorticity = Field(∂z(u) - ∂x(w))
 
-total_b = Field(b + model.background_fields.tracers.b)
-
-simulation.output_writers[:vorticity] =
-    JLD2OutputWriter(model, (Ω=total_vorticity, b=b, B=total_b),
+simulation.output_writers[:snapshots] =
+    JLD2OutputWriter(model, (Ω=total_vorticity, b=b, νₑ=model.diffusivity_fields.νₑ),
                      schedule = TimeInterval(1),
                      field_slicer = FieldSlicer(j=1),
                      prefix = "kelvin_helmholtz_instability",
@@ -72,11 +63,11 @@ run!(simulation)
 
 
 # Now we plot stuff
-
+using Plots
 using Printf
 using JLD2
 
-file = jldopen(simulation.output_writers[:vorticity].filepath)
+file = jldopen(simulation.output_writers[:snapshots].filepath)
 
 iterations = parse.(Int, keys(file["timeseries/t"]))
 
@@ -116,7 +107,7 @@ anim_total = @animate for (i, iteration) in enumerate(iterations)
 
     t = file["timeseries/t/$iteration"]
     ω_snapshot = file["timeseries/Ω/$iteration"][:, 1, :]
-    b_snapshot = file["timeseries/B/$iteration"][:, 1, :]
+    b_snapshot = file["timeseries/b/$iteration"][:, 1, :]
 
     eigenmode_plot = eigenplot(ω_snapshot, b_snapshot, nothing, t; ω_lim=1, b_lim=0.05)
 
