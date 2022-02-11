@@ -1,6 +1,10 @@
-# AGUOSM22-LES-tutorial
+# TT01 Theory, software, and best practices for large eddy simulations of small-scale ocean turbulence
 
-Welcome to the online resource for the LES tutorial at the 2022 AGU Ocean Sciences Meeting. 
+Welcome to the online resource for the LES tutorial at the 2022 AGU Ocean Sciences Meeting: https://www.aslo.org/osm2022/tutorials/
+
+**Date and Time**: 3/3/2022, 10:00PM to 11:00PM
+
+**Location**: Room 19
 
 
 ## Abstract and intro 
