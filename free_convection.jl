@@ -56,7 +56,7 @@ function run_free_convection(; N=32, H=64, Qᵇ=1e-8, N²=1e-6, advection=Upwind
     simulation.output_writers[:averages] = JLD2OutputWriter(model, (; wb, qᵇ),
                                                             prefix = prefix * "_averages",
                                                             schedule = TimeInterval(stop_time/10),
-                                                            init = file -> (file["surface_flux"] = Qᵇ),
+                                                            init = (file, model) -> (file["surface_flux"] = Qᵇ),
                                                             force = true)
 
     run!(simulation)
@@ -88,7 +88,8 @@ w_title = @lift "Vertical velocity at t = " * prettytime(w.times[$n])
 wⁿ = @lift Array(interior(w[$n]))[1, :, :]
 
 ax = Axis(fig[1, 1:3]; title=w_title, xlabel="x (m)", ylabel="z (m)")
-hm = heatmap!(ax, y, z, wⁿ, limits=(-wmax, wmax), colormap=:balance) 
+#hm = heatmap!(ax, y, z, wⁿ, limits=(-wmax, wmax), colormap=:balance) 
+hm = heatmap!(ax, y, z, wⁿ, colormap=:balance) 
 cb = Colorbar(fig[1, 4], limits=(-wmax, wmax), colormap=:balance)
 
 # Line plots of the vertical fluxes
@@ -103,7 +104,7 @@ ax = Axis(fig[1, 5]; xlabel=fluxes_label, ylabel="z (m)")
 lines!(ax, wb, z, label="Resolved, ⟨wb⟩")
 lines!(ax, qᵇ, z, label="Unresolved, -⟨κₑ ∂z(b)⟩")
 axislegend(ax, position=:rb)
-xlims!(ax, -1e-8, 1e-8)
+#xlims!(ax, -1e-8, 1e-8)
 
 # Update figure data to produce an animation
 record(fig, prefix * ".mp4", 1:Nt, framerate=8) do nn
