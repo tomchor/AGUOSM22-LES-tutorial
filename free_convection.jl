@@ -45,7 +45,7 @@ function run_free_convection(; N=32, H=64, Qᵇ=1e-8, N²=1e-6, advection=Upwind
 
     simulation.output_writers[:fields] = JLD2OutputWriter(model, fields(model),
                                                           prefix = prefix * "_fields",
-                                                          schedule = TimeInterval(stop_time/10),
+                                                          schedule = TimeInterval(stop_time/100),
                                                           field_slicer = nothing,
                                                           force = true)
         
@@ -55,7 +55,7 @@ function run_free_convection(; N=32, H=64, Qᵇ=1e-8, N²=1e-6, advection=Upwind
     qᵇ = Field(Average(- ∂z(b) * κₑ, dims=(1, 2)))
     simulation.output_writers[:averages] = JLD2OutputWriter(model, (; wb, qᵇ),
                                                             prefix = prefix * "_averages",
-                                                            schedule = TimeInterval(stop_time/10),
+                                                            schedule = TimeInterval(stop_time/100),
                                                             init = (file, model) -> (file["surface_flux"] = Qᵇ),
                                                             force = true)
 
@@ -64,53 +64,58 @@ function run_free_convection(; N=32, H=64, Qᵇ=1e-8, N²=1e-6, advection=Upwind
     return prefix
 end
 
-# Run the free convection experiment
-prefix = run_free_convection()
 
-# Generate file paths from the file prefix
-fields_path = prefix * "_fields.jld2"
-averages_path = prefix * "_averages.jld2"
-
-# Load vertical velocity data and coordinates
-w = FieldTimeSeries(fields_path, "w")
-x, y, z = nodes(w)
-Nt = size(w, 4)
-Nz = w.grid.Nz
-wmax = maximum(abs, w[Nt])
-n = Observable(1) # `n` represents the "snapshot index" (n varies from 1 to 11 here)
-
-# Build the figure
-fig = Figure(resolution=(1600, 800))
-
-# A heatmap of vertical velocity
-# Note: @lift interprets the node `n` so wⁿ can be updated dynamically to produce an animation
-w_title = @lift "Vertical velocity at t = " * prettytime(w.times[$n])
-wⁿ = @lift Array(interior(w[$n]))[1, :, :]
-
-ax = Axis(fig[1, 1:3]; title=w_title, xlabel="x (m)", ylabel="z (m)")
-#hm = heatmap!(ax, y, z, wⁿ, limits=(-wmax, wmax), colormap=:balance) 
-hm = heatmap!(ax, y, z, wⁿ, colormap=:balance) 
-cb = Colorbar(fig[1, 4], limits=(-wmax, wmax), colormap=:balance)
-
-# Line plots of the vertical fluxes
-fluxes_label = @lift "xy-averaged fluxes at t = " * prettytime(w.times[$n])
-averages_file = jldopen(averages_path)
-Qᵇ = averages_file["surface_flux"]
-iterations = parse.(Int, keys(averages_file["timeseries/t"]))
-wb = @lift averages_file["timeseries/wb/" * string(iterations[$n])][:]
-qᵇ = @lift vcat(averages_file["timeseries/qᵇ/" * string(iterations[$n])][1:Nz], [Qᵇ])
-
-ax = Axis(fig[1, 5]; xlabel=fluxes_label, ylabel="z (m)")
-lines!(ax, wb, z, label="Resolved, ⟨wb⟩")
-lines!(ax, qᵇ, z, label="Unresolved, -⟨κₑ ∂z(b)⟩")
-axislegend(ax, position=:rb)
-#xlims!(ax, -1e-8, 1e-8)
-
-# Update figure data to produce an animation
-record(fig, prefix * ".mp4", 1:Nt, framerate=8) do nn
-    @info "Animating frame $nn of $Nt..."
-    n[] = nn
+Ns = [16, 32, 64, 128]
+for N in Ns
+    @info "Running convection with" N
+    # Run the free convection experiment
+    prefix = run_free_convection(N=N)
+    
+    # Generate file paths from the file prefix
+    fields_path = prefix * "_fields.jld2"
+    averages_path = prefix * "_averages.jld2"
+    
+    # Load vertical velocity data and coordinates
+    w = FieldTimeSeries(fields_path, "w")
+    x, y, z = nodes(w)
+    Nt = size(w, 4)
+    Nz = w.grid.Nz
+    wmax = maximum(abs, w[Nt])
+    n = Observable(1) # `n` represents the "snapshot index" (n varies from 1 to 11 here)
+    
+    # Build the figure
+    fig = Figure(resolution=(1600, 800))
+    
+    # A heatmap of vertical velocity
+    # Note: @lift interprets the node `n` so wⁿ can be updated dynamically to produce an animation
+    w_title = @lift "Vertical velocity at t = " * prettytime(w.times[$n])
+    wⁿ = @lift Array(interior(w[$n]))[1, :, :]
+    
+    ax = Axis(fig[1, 1:3]; title=w_title, xlabel="x (m)", ylabel="z (m)")
+    #hm = heatmap!(ax, y, z, wⁿ, limits=(-wmax, wmax), colormap=:balance) 
+    hm = heatmap!(ax, y, z, wⁿ, colormap=:balance) 
+    cb = Colorbar(fig[1, 4], limits=(-wmax, wmax), colormap=:balance)
+    
+    # Line plots of the vertical fluxes
+    fluxes_label = @lift "xy-averaged fluxes at t = " * prettytime(w.times[$n])
+    averages_file = jldopen(averages_path)
+    Qᵇ = averages_file["surface_flux"]
+    iterations = parse.(Int, keys(averages_file["timeseries/t"]))
+    wb = @lift averages_file["timeseries/wb/" * string(iterations[$n])][:]
+    qᵇ = @lift vcat(averages_file["timeseries/qᵇ/" * string(iterations[$n])][1:Nz], [Qᵇ])
+    
+    ax = Axis(fig[1, 5]; xlabel=fluxes_label, ylabel="z (m)")
+    scatter!(ax, wb, z, label="Resolved, ⟨wb⟩")
+    scatter!(ax, qᵇ, z, label="Unresolved, -⟨κₑ ∂z(b)⟩")
+    axislegend(ax, position=:rb)
+    xlims!(ax, -Qᵇ/8, 1.15*Qᵇ)
+    
+    # Update figure data to produce an animation
+    record(fig, prefix * ".mp4", 1:Nt, framerate=16) do nn
+        @info "Animating frame $nn of $Nt..."
+        n[] = nn
+    end
+    
+    # Close the file with horizontal averages
+    close(averages_file)
 end
-
-# Close the file with horizontal averages
-close(averages_file)
