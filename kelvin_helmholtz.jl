@@ -3,7 +3,6 @@ using Oceananigans.Units
 using Plots
 using Printf
 using JLD2
-using Oceanostics: SingleLineProgressMessenger
 
 L = 10
 grid = RectilinearGrid(size=(32, 32, 64), x=(-L/2, L/2), y=(-L/2, L/2), z=(-L/2, L/2),
@@ -43,7 +42,13 @@ function run_kelvin_helmholtz(closure; grid=grid,
 
     # Simple logging
     start_time = 1e-9*time_ns()
-    progress = SingleLineProgressMessenger(LES=true, initial_wall_time_seconds=start_time)
+    # Simple logging
+    progress(sim) = @info @sprintf("[%.2f %%] iter %d, t = %s, Δt = %s, max(|w|): %.2e",
+                                   100time(sim) / stop_time,
+                                   iteration(sim),
+                                   prettytime(sim),
+                                   prettytime(sim.Δt),
+                                   maximum(abs, sim.model.velocities.w))
     simulation.callbacks[:progress] = Callback(progress, IterationInterval(10))
 
     # Adaptive time-stepping
