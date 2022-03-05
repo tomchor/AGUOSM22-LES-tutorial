@@ -4,13 +4,23 @@ using Oceananigans: fields
 using Printf
 using GLMakie
 using JLD2
+@inline heaviside(X) = ifelse(X < 0, zero(X), one(X))
+
 
 function run_free_convection(; N=32, H=64, Qᵇ=1e-8, N²=1e-6, advection=UpwindBiasedFifthOrder(), model_kwargs...)
 
     grid = RectilinearGrid(size=(N, N, N), x=(0, 2H), y=(0, 2H), z=(-H, 0), halo=(3, 3, 3))
 
-    buoyancy_boundary_conditions =
-        FieldBoundaryConditions(top=FluxBoundaryCondition(Qᵇ), bottom=GradientBoundaryCondition(N²))                               
+    buoyancy_boundary_conditions = FieldBoundaryConditions(top=FluxBoundaryCondition(Qᵇ), bottom=GradientBoundaryCondition(N²))                               
+
+
+    function bottom_mask_2nd(x, y, z)
+        z₁ = -grid.Lz; z₀ = z₁ + grid.Lz/6
+        return heaviside((z - z₀)/(z₁ - z₀)) * ((z - z₀)/(z₁ - z₀))^2
+    end
+
+    sponge_0 = Relaxation(rate=50*√N², mask=bottom_mask_2nd, target=0)
+    forcing = (u=sponge_0, v=sponge_0, w=sponge_0,)
 
     model = NonhydrostaticModel(; grid = grid,
                                   tracers = :b,
@@ -19,6 +29,7 @@ function run_free_convection(; N=32, H=64, Qᵇ=1e-8, N²=1e-6, advection=Upwind
                                   buoyancy = BuoyancyTracer(),
                                   boundary_conditions = (; b=buoyancy_boundary_conditions),
                                   closure = AnisotropicMinimumDissipation(),
+                                  forcing=forcing,
                                   model_kwargs...)
 
     # Initial condition: linear stratification + surface-concentrated random noise
@@ -65,7 +76,7 @@ function run_free_convection(; N=32, H=64, Qᵇ=1e-8, N²=1e-6, advection=Upwind
 end
 
 
-Ns = [16, 32, 64, 128]
+Ns = [16, 32, 64,]
 for N in Ns
     @info "Running convection with" N
     # Run the free convection experiment

@@ -5,7 +5,8 @@ using Printf
 using JLD2
 
 L = 10
-grid = RectilinearGrid(size=(32, 32, 64), x=(-L/2, L/2), y=(-L/2, L/2), z=(-L/2, L/2),
+N = 32
+grid = RectilinearGrid(size=(N, N, 2N), x=(-L/2, L/2), y=(-L/2, L/2), z=(-L/2, L/2),
                        halo=(3,3,3,),
                        topology=(Periodic, Periodic, Bounded))
 
