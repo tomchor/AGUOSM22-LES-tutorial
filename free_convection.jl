@@ -92,8 +92,7 @@ for N in Ns
     wⁿ = @lift Array(interior(w[$n]))[1, :, :]
     
     ax = Axis(fig[1, 1:3]; title=w_title, xlabel="x (m)", ylabel="z (m)")
-    #hm = heatmap!(ax, y, z, wⁿ, limits=(-wmax, wmax), colormap=:balance) 
-    hm = heatmap!(ax, y, z, wⁿ, colormap=:balance) 
+    hm = heatmap!(ax, y, z, wⁿ, colormap=:balance, colorrange = (-wmax, wmax))
     cb = Colorbar(fig[1, 4], limits=(-wmax, wmax), colormap=:balance)
     
     # Line plots of the vertical fluxes
@@ -108,7 +107,7 @@ for N in Ns
     scatter!(ax, wb, z, label="Resolved, ⟨wb⟩")
     scatter!(ax, qᵇ, z, label="Unresolved, -⟨κₑ ∂z(b)⟩")
     axislegend(ax, position=:rb)
-    xlims!(ax, -Qᵇ/8, 1.15*Qᵇ)
+    xlims!(ax, -Qᵇ/5, 1.15*Qᵇ)
     
     # Update figure data to produce an animation
     record(fig, prefix * ".mp4", 1:Nt, framerate=16) do nn
